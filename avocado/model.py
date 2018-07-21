@@ -8,6 +8,22 @@ of the human epigenome. This file has functions for building a deep tensor
 factorization model.
 """
 
+from .io import sequential_data_generator
+from .io import data_generator
+
+import numpy
+
+try:
+	import keras
+	from keras.layers import Input, Embedding, Dense
+	from keras.layers import Multiply, Dot, Flatten, concatenate
+	from keras.models import Model
+	from keras.optimizers import Adam
+except:
+	Input, Embedding, Dense = object, object, object
+	Multiply, Dot, Flatten = object, object, object
+	Model, Adam = object, object
+
 def build_model(n_celltypes, n_celltype_factors, n_assays, n_assay_factors,
 	n_genomic_positions, n_25bp_factors, n_250bp_factors, n_5kbp_factors,
 	n_layers, n_nodes):
@@ -48,14 +64,18 @@ def build_model(n_celltypes, n_celltype_factors, n_assays, n_assay_factors,
 
 class Avocado(object):
 	def __init__(self, celltypes, assays, n_celltypes=127, n_celltype_factors=32, 
-		n_assays=24, n_assay_factors=256, n_genomic_positions=1126468, 
+		n_assays=24, n_assay_factors=256, n_genomic_positions=1126469,
 		n_25bp_factors=25, n_250bp_factors=40, n_5kbp_factors=45, n_layers=2,
-		n_nodes=2048):
+		n_nodes=2048, batch_size=40000):
+
 		self.celltypes = celltypes
 		self.assays = assays
 
 		self.n_celltypes = len(celltypes)
 		self.n_assays = len(assays)
+
+		self.n_genomic_positions = n_genomic_positions
+		self.batch_size = batch_size
 
 		self.model = build_model(n_celltypes=n_celltypes,
 								 n_celltype_factors=n_celltype_factors,
@@ -68,6 +88,75 @@ class Avocado(object):
 								 n_layers=n_layers,
 								 n_nodes=n_nodes)
 
+	def fit(self, X_train, X_valid=None, summary=False, n_epochs=200, epoch_size=120):
+		"""Fit the model to the given epigenomic tracks.
 
+		Pass in a dictionary of training data and an optional dictionary of
+		validation data. The keys to this dictionary are a tuple of the format
+		(celltype, assay) and the values are the corresponding track in the
+		form of a numpy array. The tracks can either be in the form of an array
+		that is in memory or as a memory map.
 
+		Parameters
+		----------
+		X_train : dict
+			A dictionary of training data values, where the keys are a tuple of
+			(celltype, assay) and the values are a track.
 
+		X_valid : dict or None, optional
+			A dictionary of validation data values that are used to calculate
+			validation set MSE during the training process. If None, validation
+			set statistics are not calculated during the training process.
+			Default is None.
+
+		summary : bool, optional
+			If True print out a summary of the model before the training begins.
+			Default is False.
+
+		n_epochs : int, optional
+			The number of epochs to train on before ending training. Default is 120.
+
+		epoch_size : int, optional
+			The number of batches per epoch. Default is 200.
+		"""
+
+		X_train_gen = sequential_data_generator(self.celltypes, self.assays, 
+			X_train, self.n_genomic_positions, self.batch_size)
+
+		if summary:
+			self.model.summary()
+
+		if X_valid is not None:
+			X_valid_gen = data_generator(self.celltypes, self.assays, 
+				X_valid, self.n_genomic_positions, self.batch_size)
+			self.model.fit_generator(X_train_gen, epoch_size, n_epochs, workers=1, 
+				pickle_safe=True, validation_data=X_valid_gen, validation_steps=30)
+		else:
+			self.model.fit_generator(X_train_gen, epoch_size, n_epochs, workers=1, pickle_safe=True)
+
+	def predict(self, celltype, assay):
+		celltype_idx = self.celltypes.index(celltype)
+		assay_idx = self.assays.index(assay)
+
+		celltype_idxs = numpy.ones(self.n_genomic_positions) * celltype_idx
+		assay_idxs = numpy.ones(self.n_genomic_positions) * assay_idx
+
+		genomic_25bp_idxs  = numpy.arange(self.n_genomic_positions)
+		genomic_250bp_idxs = numpy.arange(self.n_genomic_positions) / 10
+		genomic_5kbp_idxs  = numpy.arange(self.n_genomic_positions) / 200
+
+		X = {'celltype' : celltype_idxs, 'assay' : assay_idxs, 
+			'genome_25bp' : genomic_25bp_idxs, 'genome_250bp' : genomic_250bp_idxs, 
+			'genome_5kbp' : genomic_5kbp_idxs}
+		y = self.model.predict(X, batch_size=self.batch_size)[:,0]
+		return y
+
+	def get_params(self):
+		params = []
+		for layer in model.layers:
+			params.append(layers.get_weghts()[0])
+
+	def save(self, name="avocado"):
+		"""derp"""
+
+		self.model.save("{}.h5".format(name))
