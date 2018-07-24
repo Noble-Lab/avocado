@@ -12,7 +12,7 @@ This repository is comprised of multiple parts:
 
 (4) A Jupyter notebook named "Avocado Downstream Task Demo.ipynb" that contains a demonstration on how to evaluate various feature sets at downstream genomics tasks. This example contains pre-extracted data from the Roadmap compendium, ChromImpute/PREDICTD/Avocado imputed measurements, and the Avocado latent factors for the prediction of gene expression in IMR90.
 
-1. System Requirements
+1) System Requirements
 
 This code has been tested on a Ubuntu 16.04 machine running 2.7.14 (64-bit). However, it should run on any machine that has Python 2.7 installed.
 
@@ -32,10 +32,10 @@ seaborn     0.8.1
 
 A GPU is not required to run the demo code, but will significantly speed it up. Many GPUs were used to train the full Avocado model.
 
-2. Installation Guide
+2) Installation Guide
 
 A call to `python setup.py install` should install the required dependencies. The installation of all packages, should the user have none, should not exceed 10 minutes given a standard internet connection (1 Mb/s).
 
-3. Demo and Instructions for Use
+3.) Demo and Instructions for Use
 
 Please see the "Avocado Training Demo.html" and "Avocado Downstream Task Demo.html" for demonstrations with narrative text of how to define and train a model, and how to use the extracted latent factors on a downstream genomics task. Given that training the model presented in the manuscript required multiple GPUs on hundreds of gigabytes of data, we cannot provide instructions for reproducing the quantitative results of the manuscript using this demonstration.
