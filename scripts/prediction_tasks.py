@@ -8,9 +8,7 @@ from avocado import *
 from avocado import celltypes as roadmap_celltypes
 all_tracks = training_set + validation_set + test_set
 
-from sklearn.metrics import average_precision_score, roc_auc_score
-from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import cross_val_score
+from sklearn.metrics import average_precision_score
 
 from joblib import Parallel, delayed
 from tqdm import tqdm
@@ -88,41 +86,30 @@ def make_predictions(X, y, celltypes, celltype):
 	numpy.random.shuffle(idx)
 	X, y = X[idx], y[idx]
 
-	aupr = numpy.zeros(5)
-	for i in range(5):
-		X_test = X[i::5]
-		X_valid = X[(i+1)%5::5]
-		X_train = numpy.concatenate([X[j::5] for j in range(5) if j != i and j != (i+1)%5])
+	n_folds = 20
+	maps = numpy.zeros(n_folds)
+	for i in range(n_folds):
+		X_test = X[i::n_folds]
+		X_valid = X[(i+1)%n_folds::n_folds]
+		X_train = numpy.concatenate([X[j::n_folds] for j in range(n_folds) if j != i and j != (i+1)%n_folds])
 
-		y_test = y[i::5]
-		y_valid = y[(i+1)%5::5]
-		y_train = numpy.concatenate([y[j::5] for j in range(5) if j != i and j != (i+1)%5])
+		y_test = y[i::n_folds]
+		y_valid = y[(i+1)%n_folds::n_folds]
+		y_train = numpy.concatenate([y[j::n_folds] for j in range(n_folds) if j != i and j != (i+1)%n_folds])
 
 		model = xgboost.XGBClassifier(n_estimators=5000, nthread=min(X_train.shape[1], 20), max_depth=6)
 		model.fit(X_train, y_train, eval_set=[(X_valid, y_valid)], eval_metric='map', early_stopping_rounds=20, verbose=False)
 
 		y_hat = model.predict_proba(X_test)
-		aupr[i] = average_precision_score(y_test, y_hat[:,1])
+		maps[i] = average_precision_score(y_test, y_hat[:,1])
 
-	return aupr  
+	return maps  
 
 def celltype_baseline(y, celltypes, celltype):
 	y_hat = numpy.zeros((celltypes == celltype).sum())
 	y_hat[:] = y[celltypes == celltype].mean()
-	y_hat += numpy.random.normal(0, 0.0001, size=y_hat.shape[0],)
 	y_test = y[celltypes == celltype]
-
-	aupr = average_precision_score(y_test, y_hat)	
-	return aupr
-
-def locus_baseline(y, celltypes, celltype):
-	n, m = y.shape[0], numpy.unique(celltypes).shape[0]
-
-	y_hat_tied = y[celltypes != celltype].reshape(m-1, n // m).T.mean(axis=1)
-	y_test = y[celltypes == celltype]
-
-	return average_precision_score(y_test, y_hat_tied)
-
+	return average_precision_score(y_test, y_hat)	
 
 data_dir = '/net/noble/vol4/noble/user/jmschr/proj/avocado/data'
 chrom_dir = '/net/noble/vol5/user/jmschr/proj/avocado/predictions/ChromImpute'
@@ -147,17 +134,15 @@ def run_TADs():
 	X6 = numpy.concatenate([numpy.load("datasets/chr{}.TADs.x6.npy".format(chrom)) for chrom in range(1, 23)])
 	X6 = numpy.concatenate([X6 for i in range(7)])
 
-	prs = numpy.zeros((7, 8, 5))
+	prs = numpy.zeros((7, 7, 20))
 	for idx, celltype in zip(range(7), celltypes_):
 		for j, X in enumerate([X1, X2, X3, X4, X5, X6]):
 			prs[idx, j] = make_predictions(X, TADs, celltypes, celltype)
 
 		prs[idx, 6] = celltype_baseline(TADs, celltypes, celltype)
-		prs[idx, 7] = locus_baseline(TADs, celltypes, celltype)
-
 		print celltype, prs[idx].mean(axis=1)
 
-	numpy.save("TAD_maps.npy", prs)
+	numpy.save("TAD_maps20.npy", prs)
 
 
 def run_FIREs():
@@ -181,18 +166,16 @@ def run_FIREs():
 	X6 = numpy.concatenate([numpy.load("datasets/chr{}.TADs.x6.npy".format(chrom)) for chrom in range(1, 23)])
 	X6 = numpy.concatenate([X6 for i in range(7)])
 
-	prs = numpy.zeros((7, 8, 5))
+	prs = numpy.zeros((7, 7, 20))
 	for idx, celltype in zip(range(7), celltypes_):
 		results = []
 		for j, X in enumerate([X1, X2, X3, X4, X5, X6]):
 			prs[idx, j] = make_predictions(X, FIREs, celltypes, celltype)
 
 		prs[idx, 6] = celltype_baseline(FIREs, celltypes, celltype)
-		prs[idx, 7] = locus_baseline(FIREs, celltypes, celltype)
-
 		print celltype, prs[idx].mean(axis=1)
 
-	numpy.save("FIRE_maps.npy", prs)
+	numpy.save("FIRE_maps20.npy", prs)
 
 def run_PEIs():
 	X1 = numpy.load("pei_X1.npy")
@@ -211,17 +194,16 @@ def run_PEIs():
 
 	celltypes_ = ['E017', 'E116', 'E117', 'E123']
 
-	prs = numpy.zeros((4, 8, 5))
+	prs = numpy.zeros((4, 8, 20))
 	for idx, celltype in zip(range(7), celltypes_):
 		for j, X in enumerate([X1, X2, X3, X4, X5, X6]):
 			prs[idx, j] = make_predictions(X, y, celltypes, celltype)
 
 		prs[idx, 6] = make_predictions(X7, y2, celltypes2, celltype)
 		prs[idx, 7] = make_predictions(X8, y2, celltypes2, celltype)
-
 		print celltype, prs[idx].mean(axis=1)
 
-	numpy.save("pei_maps.npy", prs)
+	numpy.save("pei_maps20.npy", prs)
 	print prs
 
 def explain_TADs():
@@ -315,6 +297,6 @@ def explain_FIREs():
 #explain_TADs()
 #explain_FIREs()
 
-run_FIREs()
+#run_FIREs()
 #run_TADs()
-#run_PEIs()
+run_PEIs()

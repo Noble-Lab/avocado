@@ -63,8 +63,8 @@ def build_model(n_celltypes, n_celltype_factors, n_assays, n_assay_factors,
 	return model
 
 class Avocado(object):
-	def __init__(self, celltypes, assays, n_celltypes=127, n_celltype_factors=32, 
-		n_assays=24, n_assay_factors=256, n_genomic_positions=1126469,
+	def __init__(self, celltypes, assays, n_celltype_factors=32, 
+		n_assay_factors=256, n_genomic_positions=1126469,
 		n_25bp_factors=25, n_250bp_factors=40, n_5kbp_factors=45, n_layers=2,
 		n_nodes=2048, batch_size=40000):
 
@@ -77,9 +77,9 @@ class Avocado(object):
 		self.n_genomic_positions = n_genomic_positions
 		self.batch_size = batch_size
 
-		self.model = build_model(n_celltypes=n_celltypes,
+		self.model = build_model(n_celltypes=self.n_celltypes,
 								 n_celltype_factors=n_celltype_factors,
-								 n_assays=n_assays,
+								 n_assays=self.n_assays,
 								 n_assay_factors=n_assay_factors,
 								 n_genomic_positions=n_genomic_positions,
 								 n_25bp_factors=n_25bp_factors,
@@ -88,7 +88,12 @@ class Avocado(object):
 								 n_layers=n_layers,
 								 n_nodes=n_nodes)
 
-	def fit(self, X_train, X_valid=None, summary=False, n_epochs=200, epoch_size=120):
+	def summary(self):
+		"""A wrapper method for the keras summary method."""
+
+		self.model.summary()
+
+	def fit(self, X_train, X_valid=None, n_epochs=200, epoch_size=120):
 		"""Fit the model to the given epigenomic tracks.
 
 		Pass in a dictionary of training data and an optional dictionary of
@@ -109,10 +114,6 @@ class Avocado(object):
 			set statistics are not calculated during the training process.
 			Default is None.
 
-		summary : bool, optional
-			If True print out a summary of the model before the training begins.
-			Default is False.
-
 		n_epochs : int, optional
 			The number of epochs to train on before ending training. Default is 120.
 
@@ -122,9 +123,6 @@ class Avocado(object):
 
 		X_train_gen = sequential_data_generator(self.celltypes, self.assays, 
 			X_train, self.n_genomic_positions, self.batch_size)
-
-		if summary:
-			self.model.summary()
 
 		if X_valid is not None:
 			X_valid_gen = data_generator(self.celltypes, self.assays, 
