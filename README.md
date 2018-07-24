@@ -36,6 +36,6 @@ A GPU is not required to run the demo code, but will significantly speed it up. 
 
 A call to `python setup.py install` should install the required dependencies. The installation of all packages, should the user have none, should not exceed 10 minutes given a standard internet connection (1 Mb/s).
 
-3.) Demo and Instructions for Use
+3) Demo and Instructions for Use
 
 Please see the "Avocado Training Demo.html" and "Avocado Downstream Task Demo.html" for demonstrations with narrative text of how to define and train a model, and how to use the extracted latent factors on a downstream genomics task. Given that training the model presented in the manuscript required multiple GPUs on hundreds of gigabytes of data, we cannot provide instructions for reproducing the quantitative results of the manuscript using this demonstration.
